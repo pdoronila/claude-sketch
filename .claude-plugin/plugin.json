@@ -1,0 +1,15 @@
+{
+  "name": "claude-sketch",
+  "description": "Create interactive terminal visualizations using Rust and ratatui - like Claude artifacts but in the terminal",
+  "version": "0.1.0",
+  "author": {
+    "name": "Claude Sketch Contributors"
+  },
+  "repository": "https://github.com/yourusername/claude-sketch",
+  "license": "MIT",
+  "keywords": ["tui", "terminal", "visualization", "ratatui", "rust", "interactive", "sketch"],
+  "skills": "./skills/",
+  "commands": ["./commands/sketch.md"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}

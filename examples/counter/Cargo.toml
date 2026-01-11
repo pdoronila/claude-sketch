@@ -1,0 +1,10 @@
+[package]
+name = "counter-sketch"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+claude-sketch-runtime = { path = "../../crates/claude-sketch-runtime" }
+ratatui = "0.29"
+crossterm = "0.28"
+anyhow = "1"
