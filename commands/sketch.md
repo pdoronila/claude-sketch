@@ -10,174 +10,172 @@ If the user didn't specify what to create, ask them what kind of interactive ter
 
 ## Instructions
 
-1. Generate Rust code following the template and API below
-2. Use the `create_sketch` MCP tool to create the sketch
-3. Use the `run_sketch` MCP tool to compile and display it
+1. Generate Python code following the template and API below
+2. Write the sketch file to `.claude-sketch/sketches/<name>.py` using the Write tool
+3. **ALWAYS run the sketch immediately after writing it** using the bash command below - never skip this step!
+
+## Running Sketches
+
+After writing the sketch file, run it with this bash command:
+
+```bash
+# For iTerm2 (opens in a split pane, closes on exit)
+osascript -e '
+tell application "iTerm"
+    tell current session of current window
+        set newSession to (split vertically with default profile)
+    end tell
+    tell newSession
+        write text "cd \"'$(pwd)'\" && source .venv/bin/activate && exec env PYTHONPATH=src python3 .claude-sketch/sketches/<name>.py"
+        select
+    end tell
+end tell
+'
+
+# For tmux (opens in a split pane, closes on exit)
+tmux split-window -h "cd '$(pwd)' && source .venv/bin/activate && PYTHONPATH=src python3 .claude-sketch/sketches/<name>.py; exit"
+```
+
+Note: `exec` replaces the shell with Python, so when the sketch exits, the pane closes automatically.
+
+Detect the terminal by checking environment variables:
+- iTerm2: `$TERM_PROGRAM == "iTerm.app"` or `$LC_TERMINAL == "iTerm2"`
+- tmux: `$TMUX` is set
 
 ## Required Template
 
 All sketches MUST follow this exact structure:
 
-```rust
-use claude_sketch_runtime::prelude::*;
+```python
+#!/usr/bin/env python3
+from claude_sketch.runtime import SketchApp
+from textual.app import ComposeResult
+from textual.widgets import Static, Button
+from textual.containers import Center, Vertical
 
-struct MySketch {
-    // Your state here
-}
+class MySketch(SketchApp):
+    """Description of this sketch."""
 
-impl SketchApp for MySketch {
-    fn new() -> Self {
-        Self {
-            // Initialize state
-        }
+    CSS = """
+    Screen {
+        align: center middle;
     }
+    """
 
-    fn update(&mut self, event: SketchEvent) -> ControlFlow {
-        match event {
-            SketchEvent::Key(key) => {
-                match key.code {
-                    KeyCode::Char('q') => return ControlFlow::Break,
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        return ControlFlow::Break
-                    }
-                    // Handle other keys...
-                    _ => {}
-                }
-            }
-            SketchEvent::Mouse(mouse) => {
-                if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
-                    // Handle click at (mouse.column, mouse.row)
-                }
-            }
-            SketchEvent::Resize(width, height) => {
-                // Handle terminal resize
-            }
-            SketchEvent::Tick => {
-                // Handle tick for animations
-            }
-        }
-        ControlFlow::Continue
-    }
+    def compose(self) -> ComposeResult:
+        """Define UI widgets here."""
+        with Center():
+            yield Static("Hello!")
 
-    fn render(&self, frame: &mut Frame) {
-        // Render UI using ratatui widgets
-        let area = frame.area();
-        let paragraph = Paragraph::new("Hello!")
-            .alignment(Alignment::Center);
-        frame.render_widget(paragraph, area);
-    }
-}
-
-fn main() -> Result<()> {
-    run_sketch::<MySketch>()
-}
+if __name__ == "__main__":
+    MySketch().run()
 ```
 
 ## API Reference
 
-### SketchApp Trait (REQUIRED methods)
-- `fn new() -> Self` - Create initial state
-- `fn update(&mut self, event: SketchEvent) -> ControlFlow` - Handle events
-- `fn render(&self, frame: &mut Frame)` - Render the UI
+### SketchApp (inherit from this)
+- Provides default 'q' and Escape key bindings to quit
+- Enables dark mode by default
 
-### SketchEvent Variants
-- `SketchEvent::Key(KeyEvent)` - Keyboard input
-- `SketchEvent::Mouse(MouseEvent)` - Mouse input
-- `SketchEvent::Resize(u16, u16)` - Terminal resized
-- `SketchEvent::Tick` - Animation tick
+### Key Methods
+- `compose(self) -> ComposeResult` - Define your UI widgets (REQUIRED)
+- `on_mount(self)` - Called when app starts
+- `on_button_pressed(self, event)` - Handle button clicks
+- `on_key(self, event)` - Handle keyboard input
+- `watch_<property>(self, value)` - Called when a reactive property changes
 
-### ControlFlow
-- `ControlFlow::Continue` - Keep running
-- `ControlFlow::Break` - Exit the sketch
+### Reactive State
+```python
+from textual.reactive import reactive
 
-### Available from prelude
+class MySketch(SketchApp):
+    count: reactive[int] = reactive(0)
 
-**Keyboard:**
-- `KeyCode` - `Char('x')`, `Up`, `Down`, `Left`, `Right`, `Enter`, `Esc`, `Backspace`, `Tab`, `Delete`
-- `KeyEvent` - Has `.code` and `.modifiers` fields
-- `KeyModifiers` - `CONTROL`, `SHIFT`, `ALT` (use with `.contains()`)
-
-**Mouse:**
-- `MouseEvent` - Has `.kind`, `.column`, `.row`, `.modifiers`
-- `MouseEventKind` - `Down(MouseButton)`, `Up(MouseButton)`, `Drag(MouseButton)`, `ScrollDown`, `ScrollUp`
-- `MouseButton` - `Left`, `Right`, `Middle`
-
-**Layout:**
-- `Layout` - Use `Layout::vertical([...])` or `Layout::horizontal([...])`
-- `Constraint` - `Length(n)`, `Min(n)`, `Max(n)`, `Percentage(n)`, `Ratio(a, b)`
-- `Rect` - Rectangle area
-- `centered_rect(width, height, area)` - Create centered rectangle
-
-**Widgets:**
-- `Paragraph::new(text)` - Text display
-- `Block::default().borders(Borders::ALL).title("Title")` - Box with border
-- `Borders` - `NONE`, `ALL`, `TOP`, `BOTTOM`, `LEFT`, `RIGHT`
-
-**Styling:**
-- `Style::default()` - Base style
-- `.fg(Color::Red)` - Foreground color
-- `.bg(Color::Blue)` - Background color
-- `.add_modifier(Modifier::BOLD)` - Add modifier
-- `Color` - `Red`, `Green`, `Blue`, `Yellow`, `Cyan`, `Magenta`, `White`, `Black`, `DarkGray`, `Gray`
-- `Modifier` - `BOLD`, `DIM`, `ITALIC`, `UNDERLINED`, `CROSSED_OUT`
-- `Alignment` - `Left`, `Center`, `Right`
-
-**Other ratatui widgets** (import separately):
-```rust
-use ratatui::widgets::{List, ListItem, Table, Row, Cell, Gauge, Tabs};
-use ratatui::text::{Line, Span, Text};
+    def watch_count(self, count: int) -> None:
+        # IMPORTANT: Guard against calls before widgets are mounted!
+        try:
+            self.query_one("#value", Static).update(str(count))
+        except Exception:
+            pass  # Widgets not mounted yet
 ```
 
-### Helpers
-- `run_sketch::<T>()` - Run the sketch (call in main)
-- `Result<()>` - Return type for main (from `anyhow`)
+### Available Widgets
+From `textual.widgets`:
+- `Static` - Text display
+- `Button` - Clickable button (use `variant="primary"`, `"success"`, `"error"`)
+- `Input` - Text input field
+- `Checkbox` - Checkbox
+- `Switch` - Toggle switch
+- `DataTable` - Data table
+- `ProgressBar` - Progress indicator
+- `ListView` - Scrollable list
+- `Tree` - Tree view
+- `Tabs` - Tabbed interface
 
-## Interior Mutability for Clickable Areas
+### Available Containers
+From `textual.containers`:
+- `Vertical` - Stack vertically
+- `Horizontal` - Stack horizontally
+- `Center` - Center contents
+- `Grid` - Grid layout
+- `ScrollableContainer` - Scrollable area
 
-Since `render(&self, ...)` takes an immutable reference but button bounds are calculated during render, use `Cell<Rect>` to store clickable areas:
-
-```rust
-use claude_sketch_runtime::prelude::*;
-use std::cell::Cell;
-
-struct MySketch {
-    count: i32,
-    button_area: Cell<Rect>,  // Use Cell for areas updated in render()
+### CSS Styling
+```python
+CSS = """
+Screen {
+    align: center middle;
 }
 
-impl SketchApp for MySketch {
-    fn new() -> Self {
-        Self {
-            count: 0,
-            button_area: Cell::new(Rect::default()),
-        }
-    }
-
-    fn update(&mut self, event: SketchEvent) -> ControlFlow {
-        if let SketchEvent::Mouse(mouse) = event {
-            if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
-                let area = self.button_area.get();
-                if mouse.column >= area.x && mouse.column < area.x + area.width
-                    && mouse.row >= area.y && mouse.row < area.y + area.height
-                {
-                    self.count += 1;
-                }
-            }
-        }
-        ControlFlow::Continue
-    }
-
-    fn render(&self, frame: &mut Frame) {
-        let button_rect = centered_rect(20, 3, frame.area());
-        self.button_area.set(button_rect);  // Cell allows mutation in &self
-        // ... render button at button_rect
-    }
+#my-id {
+    color: cyan;
+    text-style: bold;
+    border: solid green;
+    padding: 1 2;
 }
+
+.my-class {
+    margin: 1;
+}
+
+Button {
+    margin: 0 1;
+}
+"""
 ```
+
+Common properties: `color`, `background`, `text-style`, `text-align`, `align`, `width`, `height`, `margin`, `padding`, `border`
+
+### Event Handling
+```python
+def on_button_pressed(self, event: Button.Pressed) -> None:
+    if event.button.id == "my-button":
+        # handle click
+
+def on_key(self, event) -> None:
+    if event.key == "up":
+        # handle key
+
+def on_input_submitted(self, event: Input.Submitted) -> None:
+    # handle enter in input
+```
+
+## Managing Sketches
+
+Sketches are stored in `.claude-sketch/sketches/`.
+
+- **List**: `ls .claude-sketch/sketches/`
+- **Delete one**: `rm .claude-sketch/sketches/<name>.py`
+- **Delete all**: `rm -rf .claude-sketch/sketches/*`
 
 ## Tips
 
-1. **Always handle 'q' or Ctrl+C** to allow users to exit
-2. **Use Layout** to split areas into rows/columns
-3. **Use centered_rect()** to center your UI
-4. **Use `Cell<Rect>`** to store button bounds for click detection (required because render takes `&self`)
+1. **'q' and Escape exit by default** - SketchApp includes these bindings
+2. **Use reactive properties** for state that updates the UI
+3. **Widgets handle their own events** - no manual hit detection needed
+4. **Use CSS for styling** - cleaner than inline styles
+5. **Containers for layout** - Vertical, Horizontal, Center
+6. **Guard watch methods** - Always wrap `query_one()` in try/except in watch methods, as they can be called before widgets are mounted
+7. **Widget IDs must be unique** - Never reuse the same `id=` value for multiple widgets
+8. **Keep layouts compact (~20 rows)** - For complex UIs, use `ScrollableContainer` to handle overflow
+9. **Prefer flat layouts** - Deeply nested containers with `height: auto` can cause layout errors

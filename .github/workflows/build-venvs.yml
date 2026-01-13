@@ -1,0 +1,93 @@
+name: Build Python Environments
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            arch: arm64
+            platform: darwin-arm64
+          - os: macos-13
+            arch: x64
+            platform: darwin-x64
+          - os: ubuntu-latest
+            arch: x64
+            platform: linux-x64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux-arm64
+          - os: windows-latest
+            arch: x64
+            platform: windows-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build venv (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ./scripts/build-venv.sh ${{ matrix.platform }}
+
+      - name: Build venv (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python -m venv venv/${{ matrix.platform }}
+          venv/${{ matrix.platform }}/Scripts/pip install --upgrade pip
+          venv/${{ matrix.platform }}/Scripts/pip install textual
+          # Copy claude_sketch module
+          SITE_PACKAGES=$(venv/${{ matrix.platform }}/Scripts/python -c "import site; print(site.getsitepackages()[0])")
+          cp -r src/claude_sketch "$SITE_PACKAGES/"
+
+      - name: Upload venv artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: venv-${{ matrix.platform }}
+          path: venv/${{ matrix.platform }}
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all venv artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: venv-artifacts
+
+      - name: Organize venvs
+        run: |
+          mkdir -p venv
+          for dir in venv-artifacts/venv-*; do
+            platform=$(basename "$dir" | sed 's/venv-//')
+            mv "$dir" "venv/$platform"
+          done
+
+      - name: Create release archive
+        run: |
+          tar -czvf claude-sketch-venvs.tar.gz venv/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: claude-sketch-venvs.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,11 @@
+---
+name: sketch
+description: Create interactive terminal visualizations using Python and Textual. Use when the user asks to create a TUI, terminal UI, or interactive sketch.
+---
+
 # Claude Sketch Skill
 
-Create interactive terminal visualizations using Rust and ratatui.
+Create interactive terminal visualizations using Python and Textual.
 
 ## When to Use
 
@@ -12,261 +17,305 @@ Use this skill when the user asks you to:
 
 ## How It Works
 
-1. **Create a sketch** using the `create_sketch` MCP tool with Rust source code
-2. **Run the sketch** using the `run_sketch` MCP tool - it compiles and opens in a terminal pane
-3. **Update sketches** by calling `create_sketch` again with the same name, then `run_sketch`
+1. **Write the sketch** to `.claude-sketch/sketches/<name>.py` using the Write tool
+2. **Run the sketch** using bash to open it in a terminal pane (iTerm2 or tmux)
+3. **Update sketches** by writing the file again and re-running
+
+## Managing Sketches
+
+Sketches are stored in `.claude-sketch/sketches/` in the current working directory.
+
+### List all sketches
+```bash
+ls .claude-sketch/sketches/
+```
+
+### Delete a specific sketch
+```bash
+rm .claude-sketch/sketches/<name>.py
+```
+
+### Delete all sketches
+```bash
+rm -rf .claude-sketch/sketches/*
+```
+
+## Running Sketches
+
+Detect the terminal and run appropriately. Use `exec` so the pane closes when the sketch exits.
+
+### iTerm2 (check: `$TERM_PROGRAM == "iTerm.app"`)
+```bash
+osascript -e '
+tell application "iTerm"
+    tell current session of current window
+        set newSession to (split vertically with default profile)
+    end tell
+    tell newSession
+        write text "cd \"'"$(pwd)"'\" && source .venv/bin/activate && exec env PYTHONPATH=src python3 .claude-sketch/sketches/<name>.py"
+        select
+    end tell
+end tell
+'
+```
+
+### tmux (check: `$TMUX` is set)
+```bash
+tmux split-window -h "cd '$(pwd)' && source .venv/bin/activate && PYTHONPATH=src python3 .claude-sketch/sketches/<name>.py; exit"
+```
 
 ## Sketch Template
 
-All sketches must implement the `SketchApp` trait from `claude-sketch-runtime`:
+All sketches inherit from `SketchApp`:
 
-```rust
-use claude_sketch_runtime::prelude::*;
+```python
+#!/usr/bin/env python3
+from claude_sketch.runtime import SketchApp
+from textual.app import ComposeResult
+from textual.widgets import Static, Button
+from textual.containers import Center, Vertical
+from textual.reactive import reactive
 
-struct MySketch {
-    // Your state here
-}
+class MySketch(SketchApp):
+    """Description of what this sketch does."""
 
-impl SketchApp for MySketch {
-    fn new() -> Self {
-        Self {
-            // Initialize state
-        }
+    CSS = """
+    Screen {
+        align: center middle;
     }
+    """
 
-    fn update(&mut self, event: SketchEvent) -> ControlFlow {
-        match event {
-            // Handle keyboard events
-            SketchEvent::Key(KeyEvent { code: KeyCode::Char('q'), .. }) => {
-                ControlFlow::Break  // Exit on 'q'
-            }
-            // Handle mouse clicks
-            SketchEvent::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(MouseButton::Left),
-                column, row, ..
-            }) => {
-                // Handle click at (column, row)
-                ControlFlow::Continue
-            }
-            _ => ControlFlow::Continue
-        }
-    }
+    def compose(self) -> ComposeResult:
+        """Define UI widgets here."""
+        with Center():
+            yield Static("Hello, Sketch!")
 
-    fn render(&self, frame: &mut Frame) {
-        // Render your UI using ratatui widgets
-        let area = frame.area();
-
-        let paragraph = Paragraph::new("Hello, Sketch!")
-            .alignment(Alignment::Center);
-        frame.render_widget(paragraph, area);
-    }
-}
-
-fn main() -> Result<()> {
-    run_sketch::<MySketch>()
-}
+if __name__ == "__main__":
+    MySketch().run()
 ```
 
-## Available from Prelude
+## Available from Textual
 
-The `claude_sketch_runtime::prelude::*` provides:
+### Widgets
+- `Static` - Text display
+- `Button` - Clickable button
+- `Input` - Text input field
+- `Label` - Simple text label
+- `DataTable` - Tables with rows/columns
+- `ProgressBar` - Progress indicator
+- `ListView` - Scrollable list
+- `Tree` - Hierarchical tree view
+- `Tabs` - Tabbed interface
+- `Checkbox` - Checkbox input
+- `Switch` - Toggle switch
+- `RadioSet`, `RadioButton` - Radio buttons
+- `Select` - Dropdown selection
+- `TextArea` - Multi-line text input
 
-### Types
-- `SketchApp` - The trait to implement
-- `SketchEvent` - Events (Key, Mouse, Resize, Tick)
-- `ControlFlow` - Continue or Break
+### Containers
+- `Vertical` - Stack widgets vertically
+- `Horizontal` - Stack widgets horizontally
+- `Center` - Center contents
+- `Grid` - Grid layout
+- `ScrollableContainer` - Scrollable area
+- `Container` - Generic container
 
-### Keyboard
-- `KeyCode` - Char, Up, Down, Left, Right, Enter, Esc, etc.
-- `KeyEvent` - code, modifiers
-- `KeyModifiers` - CONTROL, SHIFT, ALT
+### Styling with CSS
 
-### Mouse
-- `MouseEvent` - kind, column, row, modifiers
-- `MouseEventKind` - Down, Up, Drag, ScrollDown, ScrollUp
-- `MouseButton` - Left, Right, Middle
+Textual uses CSS-like syntax for styling:
 
-### Widgets (from claude-sketch-runtime)
-- `Button` - Clickable button with `.contains(x, y)` for hit detection
-- `Counter` - Numeric counter with min/max/step
-- `TextInput` - Text input field with cursor
+```python
+CSS = """
+Screen {
+    align: center middle;
+}
 
-### Ratatui Re-exports
-- `Frame` - The render target
-- `Rect` - Rectangle for areas
-- `Layout`, `Constraint` - For layouts
-- `Paragraph`, `Block`, `Borders` - Basic widgets
-- `Style`, `Color`, `Modifier` - Styling
-- `Alignment` - Text alignment
+#title {
+    text-style: bold;
+    color: cyan;
+}
 
-### Helpers
-- `centered_rect(width, height, area)` - Create a centered rectangle
-- `run_sketch::<T>()` - Run your sketch app
+.button-row {
+    height: 3;
+    align: center middle;
+}
+
+Button {
+    margin: 0 1;
+}
+
+Button:hover {
+    background: $accent;
+}
+"""
+```
+
+Common CSS properties:
+- `color` - Text color (red, green, blue, cyan, magenta, yellow, white, etc.)
+- `background` - Background color
+- `text-style` - bold, italic, underline, strike
+- `text-align` - left, center, right
+- `align` - Alignment within container (center middle, left top, etc.)
+- `width`, `height` - Size (auto, 100%, 50, etc.)
+- `margin`, `padding` - Spacing
+- `border` - Border style (solid, dashed, etc.)
+
+### Reactive State
+
+Use `reactive` for state that should trigger UI updates:
+
+```python
+from textual.reactive import reactive
+
+class MySketch(SketchApp):
+    # Reactive properties - UI updates automatically when these change
+    count: reactive[int] = reactive(0)
+    name: reactive[str] = reactive("")
+
+    def watch_count(self, count: int) -> None:
+        """Called automatically when count changes."""
+        # IMPORTANT: Guard against calls before widgets are mounted!
+        # Watch methods can be called during __init__ before compose() runs
+        try:
+            self.query_one("#value", Static).update(str(count))
+        except Exception:
+            pass  # Widgets not mounted yet
+```
+
+### Event Handlers
+
+```python
+def on_button_pressed(self, event: Button.Pressed) -> None:
+    """Handle button clicks."""
+    if event.button.id == "increment":
+        self.count += 1
+
+def on_key(self, event) -> None:
+    """Handle keyboard input."""
+    if event.key == "up":
+        self.count += 1
+    elif event.key == "down":
+        self.count -= 1
+
+def on_input_changed(self, event: Input.Changed) -> None:
+    """Handle text input changes."""
+    self.name = event.value
+
+def on_mount(self) -> None:
+    """Called when app starts - good for initialization."""
+    pass
+```
 
 ## Example: Counter with Buttons
 
-```rust
-use claude_sketch_runtime::prelude::*;
-use std::cell::Cell;
+```python
+#!/usr/bin/env python3
+from claude_sketch.runtime import SketchApp
+from textual.app import ComposeResult
+from textual.widgets import Static, Button
+from textual.containers import Center, Vertical, Horizontal
+from textual.reactive import reactive
 
-struct CounterSketch {
-    count: i64,
-    inc_bounds: Cell<Rect>,
-    dec_bounds: Cell<Rect>,
-}
+class CounterSketch(SketchApp):
+    """A simple counter with increment and decrement buttons."""
 
-impl SketchApp for CounterSketch {
-    fn new() -> Self {
-        Self {
-            count: 0,
-            inc_bounds: Cell::new(Rect::default()),
-            dec_bounds: Cell::new(Rect::default()),
-        }
+    CSS = """
+    Screen {
+        align: center middle;
     }
 
-    fn update(&mut self, event: SketchEvent) -> ControlFlow {
-        match event {
-            SketchEvent::Key(KeyEvent { code: KeyCode::Char('q'), .. }) |
-            SketchEvent::Key(KeyEvent { code: KeyCode::Esc, .. }) => {
-                ControlFlow::Break
-            }
-            SketchEvent::Key(KeyEvent { code: KeyCode::Up, .. }) |
-            SketchEvent::Key(KeyEvent { code: KeyCode::Char('+'), .. }) => {
-                self.count += 1;
-                ControlFlow::Continue
-            }
-            SketchEvent::Key(KeyEvent { code: KeyCode::Down, .. }) |
-            SketchEvent::Key(KeyEvent { code: KeyCode::Char('-'), .. }) => {
-                self.count -= 1;
-                ControlFlow::Continue
-            }
-            SketchEvent::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(MouseButton::Left),
-                column, row, ..
-            }) => {
-                let contains = |bounds: Rect, x: u16, y: u16| -> bool {
-                    x >= bounds.x && x < bounds.x + bounds.width
-                        && y >= bounds.y && y < bounds.y + bounds.height
-                };
-
-                if contains(self.inc_bounds.get(), column, row) {
-                    self.count += 1;
-                } else if contains(self.dec_bounds.get(), column, row) {
-                    self.count -= 1;
-                }
-                ControlFlow::Continue
-            }
-            _ => ControlFlow::Continue
-        }
+    #counter-box {
+        width: 50;
+        height: auto;
+        border: solid green;
+        padding: 1 2;
     }
 
-    fn render(&self, frame: &mut Frame) {
-        let center = centered_rect(50, 12, frame.area());
-
-        let layout = Layout::vertical([
-            Constraint::Length(2),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(2),
-        ]).split(center);
-
-        // Title
-        frame.render_widget(
-            Paragraph::new("Counter Sketch")
-                .style(Style::default().bold())
-                .alignment(Alignment::Center),
-            layout[0]
-        );
-
-        // Counter value
-        frame.render_widget(
-            Paragraph::new(format!("{}", self.count))
-                .style(Style::default().fg(Color::Cyan).bold())
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL).title("Value")),
-            layout[1]
-        );
-
-        // Buttons
-        let buttons = Layout::horizontal([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ]).split(layout[2]);
-
-        self.dec_bounds.set(buttons[0]);
-        self.inc_bounds.set(buttons[1]);
-
-        frame.render_widget(
-            Paragraph::new("[-] Decrement")
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL)),
-            buttons[0]
-        );
-        frame.render_widget(
-            Paragraph::new("[+] Increment")
-                .alignment(Alignment::Center)
-                .block(Block::default().borders(Borders::ALL)),
-            buttons[1]
-        );
-
-        // Help
-        frame.render_widget(
-            Paragraph::new("Click buttons or use +/- keys | q to quit")
-                .style(Style::default().dim())
-                .alignment(Alignment::Center),
-            layout[3]
-        );
+    #title {
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
     }
-}
 
-fn main() -> Result<()> {
-    run_sketch::<CounterSketch>()
-}
+    #value {
+        text-align: center;
+        color: cyan;
+        text-style: bold;
+        margin: 1 0;
+    }
+
+    .button-row {
+        align: center middle;
+        height: 3;
+    }
+
+    Button {
+        margin: 0 1;
+    }
+
+    #help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 1;
+    }
+    """
+
+    count: reactive[int] = reactive(0)
+
+    def compose(self) -> ComposeResult:
+        with Center():
+            with Vertical(id="counter-box"):
+                yield Static("Counter Sketch", id="title")
+                yield Static(str(self.count), id="value")
+                with Horizontal(classes="button-row"):
+                    yield Button("[-] Decrement", id="dec", variant="error")
+                    yield Button("[+] Increment", id="inc", variant="success")
+                yield Static("Click buttons or use +/- keys | q to quit", id="help")
+
+    def watch_count(self, count: int) -> None:
+        """Update display when count changes."""
+        self.query_one("#value", Static).update(str(count))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button clicks."""
+        if event.button.id == "inc":
+            self.count += 1
+        elif event.button.id == "dec":
+            self.count -= 1
+
+    def on_key(self, event) -> None:
+        """Handle keyboard input."""
+        if event.key in ("+", "="):
+            self.count += 1
+        elif event.key == "-":
+            self.count -= 1
+
+if __name__ == "__main__":
+    CounterSketch().run()
 ```
-
-## MCP Tools Available
-
-- `create_sketch` - Create or update a sketch with Rust source code
-- `run_sketch` - Compile and run a sketch in a new terminal pane
-- `stop_sketch` - Stop a running sketch
-- `list_sketches` - List all sketches and their status
-- `delete_sketch` - Delete a sketch
 
 ## Terminal Support
 
-Sketches run in a new terminal pane. Supported terminals:
+Sketches run in a new terminal pane:
 - **iTerm2** - Split pane to the right
 - **tmux** - Horizontal split
-- **Ghostty** - New window/pane
-
-## Interior Mutability for Clickable Areas
-
-Since `render(&self, ...)` takes an immutable reference but button bounds are calculated during render, use `Cell<Rect>` or `RefCell` to store clickable areas:
-
-```rust
-use std::cell::Cell;
-
-struct MySketch {
-    button_area: Cell<Rect>,  // Use Cell for simple Copy types like Rect
-}
-
-fn render(&self, frame: &mut Frame) {
-    let button_rect = centered_rect(20, 3, frame.area());
-    self.button_area.set(button_rect);  // Cell allows mutation in &self
-}
-
-fn update(&mut self, event: SketchEvent) -> ControlFlow {
-    if let SketchEvent::Mouse(mouse) = event {
-        let area = self.button_area.get();
-        // Check if click is inside area...
-    }
-}
-```
+- Other terminals - Run directly in current terminal
 
 ## Tips
 
-1. **Always handle 'q' or Esc** to allow users to exit
-2. **Use `Cell<Rect>` for button bounds** to track click areas during render (required because render takes `&self`)
-3. **Use centered_rect()** to center your UI
-4. **Test with keyboard first**, then add mouse support
-5. **Keep sketches focused** - they're meant to be quick visualizations
+1. **Press 'q' or Escape to exit** - SketchApp includes this by default
+2. **Use reactive properties** for state that affects the UI
+3. **Use CSS** for styling instead of inline styles
+4. **Widgets handle their own clicks** - no need for manual hit detection!
+5. **Use containers** (Vertical, Horizontal, Center) for layout
+6. **Guard watch methods** - Always wrap `query_one()` in try/except in watch methods, as they can be called before widgets are mounted
+7. **Widget IDs must be unique** - Never reuse the same `id=` value for multiple widgets or you'll get a MountError
+8. **Keep layouts compact** - Terminal panes are typically 20-30 rows. For complex UIs that might exceed this, use `ScrollableContainer`:
+   ```python
+   from textual.containers import ScrollableContainer
+
+   def compose(self):
+       with ScrollableContainer():
+           # Content that might overflow
+   ```
+9. **Prefer flat layouts** - Deeply nested containers with `height: auto` can cause layout errors when content exceeds terminal size. Use fewer nesting levels when possible.

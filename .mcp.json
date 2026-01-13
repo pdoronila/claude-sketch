@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "claude-sketch": {
-      "command": "./bin/run-mcp.sh",
-      "args": [],
-      "env": {}
-    }
-  }
-}

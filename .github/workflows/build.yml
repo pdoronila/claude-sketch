@@ -1,0 +1,88 @@
+name: Build Binaries
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            output: darwin-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            output: darwin-x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            output: linux-x64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            output: linux-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            output: windows-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} -p claude-sketch-mcp
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
+
+      - name: Prepare binary
+        shell: bash
+        run: |
+          mkdir -p bin/${{ matrix.output }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/${{ matrix.target }}/release/claude-sketch-mcp.exe bin/${{ matrix.output }}/
+          else
+            cp target/${{ matrix.target }}/release/claude-sketch-mcp bin/${{ matrix.output }}/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.output }}
+          path: bin/${{ matrix.output }}
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: bin
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Create release archive
+        run: |
+          chmod +x bin/*/claude-sketch-mcp 2>/dev/null || true
+          tar -czvf claude-sketch-plugin.tar.gz \
+            bin/ crates/ skills/ commands/ hooks/ \
+            .claude-plugin/ .mcp.json Cargo.toml README.md
+
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: claude-sketch-plugin.tar.gz

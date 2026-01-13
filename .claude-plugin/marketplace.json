@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-sketch",
+  "description": "Create interactive terminal visualizations using Python and Textual",
+  "owner": {
+    "name": "Claude Sketch Contributors"
+  },
+  "plugins": [
+    {
+      "name": "claude-sketch",
+      "description": "Create interactive terminal visualizations using Python and Textual - like Claude artifacts but in the terminal",
+      "version": "0.2.0",
+      "author": {
+        "name": "Claude Sketch Contributors"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/anthropics/claude-sketch",
+      "license": "MIT",
+      "keywords": ["tui", "terminal", "visualization", "textual", "python", "interactive", "sketch"],
+      "skills": "./skills/",
+      "commands": ["./commands/sketch.md"]
+    }
+  ]
+}
