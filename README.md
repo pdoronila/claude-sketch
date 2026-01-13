@@ -2,6 +2,8 @@
 
 Create interactive terminal visualizations using Python and Textual - like Claude artifacts but in the terminal.
 
+![Claude Sketch Screenshot](media/screenshot.png)
+
 ## What is Claude Sketch?
 
 Claude Sketch gives Claude Code the power to create dynamic, interactive terminal UIs on-the-fly. Claude generates Python code using Textual to create any visualization you need - **no compilation required, sketches start instantly!**
@@ -165,6 +167,10 @@ pip install textual
 # Run the counter example
 PYTHONPATH=src python examples/counter.py
 ```
+
+## Acknowledgments
+
+This project was inspired by [claude-canvas](https://github.com/dvdsgl/claude-canvas).
 
 ## License
 
